@@ -1,157 +1,98 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import LocationInput from '../../components/LocationInput';
 import MapViewComponent from '../../components/MapView';
 import { Store } from '../../types';
 
 export default function BuyerScreen() {
+  const router = useRouter();
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLocationInput, setShowLocationInput] = useState(true);
 
-  // Memoize the store selection handler
-  const handleStorePress = useCallback((store: Store) => {
+  const handleManualLocationSubmit = useCallback((latitude: number, longitude: number) => {
+    setUserLocation({ latitude, longitude });
+    setShowLocationInput(false);
+  }, []);
+
+  useEffect(() => {
+    // Load mock store data
+    const mockStores: Store[] = [
+      {
+        id: '1',
+        name: 'Fresh Beef Store',
+        location: { latitude: 37.78825, longitude: -122.4324 },
+        owner: 'John Smith',
+        description: 'Premium quality beef and meat products',
+        products: [
+          { id: '1', name: 'Premium Beef', price: 29.99, type: 'beef', description: 'High-quality premium beef cuts' },
+          { id: '2', name: 'Wagyu Beef', price: 49.99, type: 'beef', description: 'Authentic Japanese Wagyu beef' },
+        ],
+      },
+      {
+        id: '2',
+        name: 'Ocean Fish Market',
+        location: { latitude: 37.78925, longitude: -122.4334 },
+        owner: 'Sarah Johnson',
+        description: 'Fresh seafood and fish market',
+        products: [
+          { id: '3', name: 'Fresh Salmon', price: 24.99, type: 'fish', description: 'Fresh Atlantic salmon' },
+          { id: '4', name: 'Tuna Steak', price: 34.99, type: 'fish', description: 'Premium tuna steak' },
+        ],
+      },
+    ];
+    setStores(mockStores);
+    setIsLoading(false);
+  }, []);
+
+  const handleStoreSelect = useCallback((store: Store) => {
     setSelectedStore(store);
   }, []);
 
-  // Memoize the modal close handler
   const handleCloseModal = useCallback(() => {
     setSelectedStore(null);
-  }, []);
-
-  const checkLocationPermission = async () => {
-    try {
-      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'Please enable location services to see stores near you.',
-          [
-            { text: 'OK', onPress: () => setIsLoading(false) }
-          ]
-        );
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.log('Error checking location permission:', error);
-      return false;
-    }
-  };
-
-  const getCurrentLocation = async () => {
-    try {
-      const hasPermission = await checkLocationPermission();
-      if (!hasPermission) {
-        // Set default location if permission is not granted
-        setUserLocation({
-          latitude: 37.78825,
-          longitude: -122.4324,
-        });
-        return;
-      }
-
-      // Check if location services are enabled
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services to see stores near you.',
-          [
-            { text: 'OK', onPress: () => setIsLoading(false) }
-          ]
-        );
-        // Set default location if location services are disabled
-        setUserLocation({
-          latitude: 37.78825,
-          longitude: -122.4324,
-        });
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-    } catch (error) {
-      console.log('Error getting location:', error);
-      // Set default location if getting location fails
-      setUserLocation({
-        latitude: 37.78825,
-        longitude: -122.4324,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadData = async () => {
-      if (isMounted) {
-        // Load mock data immediately
-        setStores([
-          {
-            id: '1',
-            name: 'Fresh Meat Store',
-            location: { latitude: 37.78825, longitude: -122.4324 },
-            products: [{ id: '1', name: 'Beef Steak', price: 15.99, type: 'beef', description: 'Fresh beef steak' }],
-            owner: 'John Doe',
-            description: 'Best quality meat in town'
-          },
-          {
-            id: '2',
-            name: 'Ocean Fresh',
-            location: { latitude: 37.78925, longitude: -122.4334 },
-            products: [{ id: '2', name: 'Salmon', price: 12.99, type: 'fish', description: 'Fresh salmon' }],
-            owner: 'Jane Smith',
-            description: 'Fresh seafood daily'
-          }
-        ]);
-
-        await getCurrentLocation();
-      }
-    };
-
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B6B" />
-        <Text style={styles.loadingText}>Loading map...</Text>
+        <Text style={styles.loadingText}>Loading stores...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapContainer}>
+      {userLocation ? (
         <MapViewComponent
           stores={stores}
-          userLocation={userLocation || undefined}
-          onMarkerPress={handleStorePress}
+          userLocation={userLocation}
+          onMarkerPress={handleStoreSelect}
         />
+      ) : (
+        <View style={styles.mapPlaceholder}>
+          <Text style={styles.mapPlaceholderText}>Please select your location to view the map</Text>
+        </View>
+      )}
+      
+      <View style={styles.controlsContainer}>
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={() => setShowLocationInput(!showLocationInput)}
+        >
+          <MaterialIcons name="edit-location" size={24} color="#fff" />
+        </TouchableOpacity>
+        
+        {showLocationInput && (
+          <View style={styles.locationInputContainer}>
+            <LocationInput onLocationSubmit={handleManualLocationSubmit} />
+          </View>
+        )}
       </View>
 
       <Modal
@@ -162,27 +103,17 @@ export default function BuyerScreen() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleCloseModal}
-            >
-              <MaterialIcons name="close" size={24} color="#000" />
+            <Text style={styles.storeName}>{selectedStore?.name}</Text>
+            <Text style={styles.productsTitle}>Available Products:</Text>
+            {selectedStore?.products.map((product) => (
+              <View key={product.id} style={styles.productItem}>
+                <Text style={styles.productName}>{product.name}</Text>
+                <Text style={styles.productPrice}>${product.price.toFixed(2)}</Text>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.closeButton} onPress={handleCloseModal}>
+              <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
-
-            {selectedStore && (
-              <>
-                <Text style={styles.storeName}>{selectedStore.name}</Text>
-                <Text style={styles.storeDescription}>{selectedStore.description}</Text>
-                
-                <Text style={styles.sectionTitle}>Available Products:</Text>
-                {selectedStore.products.map((product) => (
-                  <View key={product.id} style={styles.productItem}>
-                    <Text style={styles.productName}>{product.name}</Text>
-                    <Text style={styles.productPrice}>${product.price}</Text>
-                  </View>
-                ))}
-              </>
-            )}
           </View>
         </View>
       </Modal>
@@ -206,8 +137,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  mapContainer: {
+  mapPlaceholder: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+  },
+  mapPlaceholderText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  controlsContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 1,
+  },
+  locationButton: {
+    backgroundColor: '#FF6B6B',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  locationInputContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 0,
+    width: 300,
   },
   modalContainer: {
     flex: 1,
@@ -216,36 +184,25 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
+    padding: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
     maxHeight: '80%',
-  },
-  closeButton: {
-    position: 'absolute',
-    right: 20,
-    top: 20,
-    zIndex: 1,
   },
   storeName: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 15,
   },
-  storeDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-  },
-  sectionTitle: {
+  productsTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 10,
   },
   productItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -254,7 +211,18 @@ const styles = StyleSheet.create({
   },
   productPrice: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FF6B6B',
+    fontWeight: '600',
+  },
+  closeButton: {
+    backgroundColor: '#FF6B6B',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Store } from '../types';
 
@@ -11,10 +11,12 @@ interface MapViewProps {
     longitude: number;
   };
   onMarkerPress?: (store: Store) => void;
+  onMapPress?: (event: any) => void;
 }
 
-const MapViewComponent: React.FC<MapViewProps> = ({ stores, userLocation, onMarkerPress }) => {
+const MapViewComponent: React.FC<MapViewProps> = ({ stores, userLocation, onMarkerPress, onMapPress }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [region, setRegion] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -47,8 +49,24 @@ const MapViewComponent: React.FC<MapViewProps> = ({ stores, userLocation, onMark
 
   // Memoize the onMapReady callback
   const handleMapReady = useCallback(() => {
+    console.log('Map is ready');
     setIsLoading(false);
   }, []);
+
+  const handleMapError = useCallback((error: any) => {
+    console.error('Map error:', error);
+    setMapError('Failed to load map. Please check your internet connection.');
+    setIsLoading(false);
+  }, []);
+
+  if (mapError) {
+    return (
+      <View style={styles.errorContainer}>
+        <MaterialIcons name="error-outline" size={48} color="#FF6B6B" />
+        <Text style={styles.errorText}>{mapError}</Text>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -65,6 +83,7 @@ const MapViewComponent: React.FC<MapViewProps> = ({ stores, userLocation, onMark
         style={styles.map}
         initialRegion={region}
         onMapReady={handleMapReady}
+        onError={handleMapError}
         showsUserLocation
         showsMyLocationButton
         maxZoomLevel={18}
@@ -73,6 +92,7 @@ const MapViewComponent: React.FC<MapViewProps> = ({ stores, userLocation, onMark
         loadingEnabled={true}
         loadingIndicatorColor="#FF6B6B"
         loadingBackgroundColor="#ffffff"
+        onPress={onMapPress}
       >
         {stores.map((store) => (
           <Marker
@@ -103,6 +123,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
   map: {
     width: Dimensions.get('window').width,
